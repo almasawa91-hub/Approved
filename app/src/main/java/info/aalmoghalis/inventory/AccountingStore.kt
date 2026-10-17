@@ -9,6 +9,7 @@ import java.math.BigDecimal
 data class AccountRecord(val id: Long, val name: String, val category: String, val phone: String)
 data class ItemRecord(val id: Long, val name: String, val code: String, val quantity: String, val price: String, val category: String, val unit: String, val costPrice: String)
 data class InvoiceRecord(val id: Long, val number: String, val type: String, val date: String, val total: String, val status: String)
+data class InvoiceLineDraft(val itemId: Long, val itemName: String, val quantity: String, val unitPrice: String)
 
 class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_rebuild.db", null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
@@ -79,21 +80,39 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
         return rows
     }
 
-    fun addInvoiceDraft(number: String, type: String, date: String, total: String): Long {
-        val cleanNumber = number.trim()
-        require(cleanNumber.isNotEmpty()) { "رقم الفاتورة مطلوب" }
+    fun addInvoiceDraft(number: String, type: String, date: String, lines: List<InvoiceLineDraft>): Long {
+        require(number.isNotBlank()) { "رقم الفاتورة مطلوب" }
         require(type == "بيع" || type == "شراء") { "نوع الفاتورة غير صالح" }
         require(date.isNotBlank()) { "تاريخ الفاتورة مطلوب" }
-        val amount = try { BigDecimal(total.trim()) } catch (_: Exception) { throw IllegalArgumentException("الإجمالي غير صالح") }
-        require(amount >= BigDecimal.ZERO) { "الإجمالي لا يمكن أن يكون سالباً" }
-        val values = ContentValues().apply {
-            put("number", cleanNumber)
-            put("type", type)
-            put("date", date.trim())
-            put("total", amount.stripTrailingZeros().toPlainString())
-            put("status", "مسودة")
-        }
-        return writableDatabase.insertOrThrow("invoices", null, values)
+        require(lines.isNotEmpty()) { "أضف صنفاً واحداً على الأقل" }
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            var total = BigDecimal.ZERO
+            val prepared = lines.map { line ->
+                val qty = BigDecimal(line.quantity)
+                val price = BigDecimal(line.unitPrice)
+                require(qty > BigDecimal.ZERO && price >= BigDecimal.ZERO)
+                total = total.add(qty.multiply(price))
+                Triple(line, qty, price)
+            }
+            val header = ContentValues().apply {
+                put("number", number.trim()); put("type", type); put("date", date.trim())
+                put("total", total.stripTrailingZeros().toPlainString()); put("status", "مسودة")
+            }
+            val id = db.insertOrThrow("invoices", null, header)
+            prepared.forEach { (line, qty, price) ->
+                val values = ContentValues().apply {
+                    put("invoice_id", id); put("item_id", line.itemId); put("item_name", line.itemName)
+                    put("quantity", qty.stripTrailingZeros().toPlainString())
+                    put("unit_price", price.stripTrailingZeros().toPlainString())
+                    put("total", qty.multiply(price).stripTrailingZeros().toPlainString())
+                }
+                db.insertOrThrow("invoice_lines", null, values)
+            }
+            db.setTransactionSuccessful()
+            return id
+        } finally { db.endTransaction() }
     }
 
     fun searchInvoices(type: String, prefix: String = ""): List<InvoiceRecord> {
