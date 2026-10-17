@@ -9,6 +9,8 @@ import java.math.BigDecimal
 data class AccountRecord(val id: Long, val name: String, val category: String, val phone: String)
 data class ItemRecord(val id: Long, val name: String, val code: String, val quantity: String, val price: String, val category: String, val unit: String, val costPrice: String)
 data class InvoiceRecord(val id: Long, val number: String, val type: String, val date: String, val total: String, val status: String)
+data class InvoiceLineRecord(val itemName: String, val quantity: String, val unitPrice: String, val total: String)
+data class InvoiceDetails(val invoice: InvoiceRecord, val lines: List<InvoiceLineRecord>)
 data class InvoiceLineDraft(val itemId: Long, val itemName: String, val quantity: String, val unitPrice: String)
 data class LocalCounts(val accounts: Int, val items: Int, val salesDrafts: Int, val purchaseDrafts: Int, val journalEntries: Int)
 data class JournalRecord(val id: Long, val kind: String, val date: String, val debitAccount: String, val creditAccount: String, val amount: String, val description: String)
@@ -126,6 +128,28 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
             db.setTransactionSuccessful()
             return id
         } finally { db.endTransaction() }
+    }
+
+    fun getInvoiceDetails(invoiceId: Long): InvoiceDetails? {
+        val invoice = readableDatabase.rawQuery(
+            "SELECT id,number,type,date,total,status FROM invoices WHERE id=?",
+            arrayOf(invoiceId.toString())
+        ).use { cursor ->
+            if (!cursor.moveToFirst()) null else InvoiceRecord(
+                cursor.getLong(0), cursor.getString(1), cursor.getString(2),
+                cursor.getString(3), cursor.getString(4), cursor.getString(5)
+            )
+        } ?: return null
+        val lines = mutableListOf<InvoiceLineRecord>()
+        readableDatabase.rawQuery(
+            "SELECT item_name,quantity,unit_price,total FROM invoice_lines WHERE invoice_id=? ORDER BY id",
+            arrayOf(invoiceId.toString())
+        ).use { cursor ->
+            while (cursor.moveToNext()) lines += InvoiceLineRecord(
+                cursor.getString(0), cursor.getString(1), cursor.getString(2), cursor.getString(3)
+            )
+        }
+        return InvoiceDetails(invoice, lines)
     }
 
     fun searchInvoices(type: String, prefix: String = ""): List<InvoiceRecord> {
