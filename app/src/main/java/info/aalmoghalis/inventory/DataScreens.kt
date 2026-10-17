@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -37,17 +38,25 @@ fun AccountManagementScreen() {
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var category by remember { mutableStateOf(CategoryNames.first()) }
+    var categoryFilter by remember { mutableStateOf(CategoryNames.first()) }
     var showForm by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
-    val records = remember(query, refresh) { store.searchAccounts(query) }
+    val records = remember(query, refresh, categoryFilter) { store.searchAccounts(query, categoryFilter) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("دليل الحسابات", fontWeight = FontWeight.Bold)
-            Button(onClick = { name = ""; phone = ""; category = CategoryNames.first(); showForm = true }) { Text("إضافة حساب") }
+            Button(onClick = { name = ""; phone = ""; category = categoryFilter; showForm = true }) { Text("إضافة حساب") }
         }
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("بحث باسم الحساب") }, singleLine = true)
-        Text("التصنيفات منفصلة: العملاء، الموردون، الأصول، الصناديق، البنوك", color = Color(0xFF64748B))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            items(CategoryNames) { label ->
+                TextButton(onClick = { categoryFilter = label }) {
+                    Text(if (categoryFilter == label) "✓ $label" else label, color = if (categoryFilter == label) Color(0xFFA67C00) else Color(0xFF64748B))
+                }
+            }
+        }
+        Text("يعرض هذا التبويب حسابات التصنيف المحدد فقط.", color = Color(0xFF64748B))
         if (records.isEmpty()) Text(if (query.isBlank()) "لا توجد حسابات محفوظة بعد." else "لا توجد نتائج تبدأ بهذه الأحرف.")
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(records, key = { it.id }) { account ->
