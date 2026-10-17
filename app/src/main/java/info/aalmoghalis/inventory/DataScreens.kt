@@ -17,9 +17,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.onDispose
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -34,6 +36,7 @@ private val CategoryNames = listOf("العملاء", "الموردون", "الأ
 fun AccountManagementScreen() {
     val context = LocalContext.current
     val store = remember { AccountingStore(context) }
+    DisposableEffect(store) { onDispose { store.close() } }
     var query by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
@@ -128,6 +131,7 @@ fun AccountManagementScreen() {
 fun ItemManagementScreen() {
     val context = LocalContext.current
     val store = remember { AccountingStore(context) }
+    DisposableEffect(store) { onDispose { store.close() } }
     var query by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
