@@ -1,5 +1,7 @@
 package info.aalmoghalis.inventory
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -122,6 +124,8 @@ fun DashboardScreen() {
                     VoucherHomeScreen()
                 } else if (selected == "القيود اليومية") {
                     JournalScreen()
+                } else if (selected == "المزيد") {
+                    BackupScreen()
                 } else if (selected == "التقارير") {
                     ReportsScreen()
                 } else {
@@ -177,6 +181,41 @@ fun DashboardScreen() {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun BackupScreen() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var status by remember { mutableStateOf("") }
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val helper = AccountingStore(context)
+                helper.writableDatabase
+                helper.close()
+                val source = context.getDatabasePath("muhasib_rebuild.db")
+                check(source.exists()) { "ملف قاعدة البيانات غير موجود" }
+                val output = context.contentResolver.openOutputStream(uri)
+                    ?: throw IllegalStateException("تعذر فتح ملف النسخة الاحتياطية")
+                output.use { out -> source.inputStream().use { input -> input.copyTo(out) } }
+                status = "تم تصدير نسخة قاعدة البيانات."
+            } catch (e: Exception) {
+                status = e.message ?: "تعذر إنشاء النسخة الاحتياطية."
+            }
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("النسخ الاحتياطي", fontWeight = FontWeight.Bold)
+        Text("احفظ نسخة من قاعدة البيانات المحلية في ملف يمكنك الاحتفاظ به أو نقله إلى هاتف آخر.")
+        androidx.compose.material3.Button(
+            onClick = { exportLauncher.launch("muhasib-backup-${System.currentTimeMillis()}.db") },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("تصدير قاعدة البيانات") }
+        if (status.isNotBlank()) Text(status, color = Color(0xFF64748B))
+        Text("استعادة النسخ الاحتياطية غير مفعلة بعد؛ لا تستبدل ملف قاعدة البيانات يدوياً أثناء استخدام التطبيق.")
     }
 }
 
