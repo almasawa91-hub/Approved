@@ -274,6 +274,7 @@ private fun BackupScreen() {
                     try {
                         store.close()
                         val database = context.getDatabasePath("muhasib_rebuild.db")
+                        database.parentFile?.mkdirs()
                         File(database.absolutePath + "-wal").delete()
                         File(database.absolutePath + "-shm").delete()
                         File(database.absolutePath + "-journal").delete()
