@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import java.math.BigDecimal
 
 @Composable
 fun InvoiceManagementScreen(type: String) {
@@ -34,19 +36,32 @@ fun InvoiceManagementScreen(type: String) {
     var query by remember { mutableStateOf("") }
     var number by remember { mutableStateOf("") }
     var date by remember { mutableStateOf("") }
-    var total by remember { mutableStateOf("0") }
+    var itemQuery by remember { mutableStateOf("") }
+    var quantity by remember { mutableStateOf("1") }
+    var unitPrice by remember { mutableStateOf("0") }
+    var selectedItem by remember { mutableStateOf<ItemRecord?>(null) }
+    var lines by remember { mutableStateOf(listOf<InvoiceLineDraft>()) }
     var showForm by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf("") }
     val records = remember(query, refresh, type) { store.searchInvoices(type, query) }
+    val suggestions = remember(itemQuery, selectedItem) {
+        if (itemQuery.isBlank() || selectedItem != null) emptyList() else store.searchItems(itemQuery).take(5)
+    }
+    val totalPreview = lines.fold(BigDecimal.ZERO) { sum, line ->
+        sum.add(BigDecimal(line.quantity).multiply(BigDecimal(line.unitPrice)))
+    }.stripTrailingZeros().toPlainString()
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
                 Text(if (type == "بيع") "فواتير البيع" else "فواتير الشراء", fontWeight = FontWeight.Bold)
-                Text("تُحفظ حالياً كمسودات محلية.", color = Color(0xFF64748B))
+                Text("المسودات المحفوظة محلياً", color = Color(0xFF64748B))
             }
-            Button(onClick = { number = ""; date = ""; total = "0"; error = ""; showForm = true }) { Text("فاتورة جديدة") }
+            Button(onClick = {
+                number = ""; date = ""; itemQuery = ""; quantity = "1"; unitPrice = "0"
+                selectedItem = null; lines = emptyList(); error = ""; showForm = true
+            }) { Text("فاتورة جديدة") }
         }
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("بحث برقم الفاتورة") }, singleLine = true)
         if (records.isEmpty()) Text(if (query.isBlank()) "لا توجد فواتير محفوظة بعد." else "لا توجد فواتير بهذا الرقم.")
@@ -61,7 +76,7 @@ fun InvoiceManagementScreen(type: String) {
                 }
             }
         }
-        Text("تنبيه: هذه المرحلة تحفظ رأس الفاتورة كمسودة فقط؛ لا تُرحّل قيوداً ولا تغيّر المخزون.", color = Color(0xFF64748B))
+        Text("الفواتير تحفظ كمسودات؛ لا تُرحّل قيوداً محاسبية ولا تغيّر المخزون في هذه المرحلة.", color = Color(0xFF64748B))
     }
 
     if (showForm) {
@@ -69,24 +84,62 @@ fun InvoiceManagementScreen(type: String) {
             onDismissRequest = { showForm = false },
             title = { Text(if (type == "بيع") "فاتورة بيع جديدة" else "فاتورة شراء جديدة") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                     OutlinedTextField(number, { number = it; error = "" }, label = { Text("رقم الفاتورة") }, singleLine = true)
                     OutlinedTextField(date, { date = it; error = "" }, label = { Text("التاريخ (YYYY-MM-DD)") }, singleLine = true)
-                    OutlinedTextField(total, { total = it; error = "" }, label = { Text("الإجمالي") }, singleLine = true)
+                    OutlinedTextField(itemQuery, {
+                        itemQuery = it
+                        selectedItem = null
+                        error = ""
+                    }, label = { Text("اكتب بداية اسم الصنف للبحث") }, singleLine = true)
+                    if (suggestions.isNotEmpty()) {
+                        LazyColumn(modifier = Modifier.heightIn(max = 120.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            items(suggestions, key = { it.id }) { item ->
+                                TextButton(onClick = {
+                                    selectedItem = item
+                                    itemQuery = item.name
+                                    unitPrice = item.price
+                                }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("${item.name}  •  ${item.price}")
+                                }
+                            }
+                        }
+                    }
+                    OutlinedTextField(quantity, { quantity = it; error = "" }, label = { Text("الكمية") }, singleLine = true)
+                    OutlinedTextField(unitPrice, { unitPrice = it; error = "" }, label = { Text("سعر الوحدة") }, singleLine = true)
+                    Button(onClick = {
+                        val item = selectedItem
+                        try {
+                            require(item != null) { "اختر صنفاً من نتائج البحث" }
+                            val qty = BigDecimal(quantity)
+                            val price = BigDecimal(unitPrice)
+                            require(qty > BigDecimal.ZERO && price >= BigDecimal.ZERO) { "تحقق من الكمية والسعر" }
+                            lines = lines + InvoiceLineDraft(item.id, item.name, qty.toPlainString(), price.toPlainString())
+                            itemQuery = ""; quantity = "1"; unitPrice = "0"; selectedItem = null; error = ""
+                        } catch (e: Exception) {
+                            error = e.message ?: "تعذر إضافة الصنف"
+                        }
+                    }, modifier = Modifier.fillMaxWidth()) { Text("إضافة الصنف إلى الفاتورة") }
+                    if (lines.isNotEmpty()) {
+                        Text("الأصناف المضافة: ${lines.size}", fontWeight = FontWeight.Bold)
+                        lines.forEachIndexed { index, line ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("${line.itemName} × ${line.quantity}", color = Color(0xFF334155))
+                                TextButton(onClick = { lines = lines.filterIndexed { i, _ -> i != index } }) { Text("حذف") }
+                            }
+                        }
+                    }
+                    Text("الإجمالي المحسوب: $totalPreview", fontWeight = FontWeight.Bold)
                     if (error.isNotBlank()) Text(error, color = Color(0xFFDC2626))
                 }
             },
             confirmButton = {
                 Button(onClick = {
                     try {
-                        store.addInvoiceDraft(number, type, date, total)
-                        query = ""
-                        refresh++
-                        showForm = false
-                    } catch (e: IllegalArgumentException) {
-                        error = e.message ?: "تحقق من البيانات المدخلة"
-                    } catch (_: Exception) {
-                        error = "تعذر حفظ الفاتورة. تحقق من رقمها وبياناتها."
+                        store.addInvoiceDraft(number, type, date, lines)
+                        query = ""; refresh++; showForm = false
+                    } catch (e: Exception) {
+                        error = e.message ?: "تعذر حفظ الفاتورة"
                     }
                 }) { Text("حفظ كمسودة") }
             },
