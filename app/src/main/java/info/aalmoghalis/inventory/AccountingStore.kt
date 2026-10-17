@@ -10,7 +10,7 @@ data class AccountRecord(val id: Long, val name: String, val category: String, v
 data class ItemRecord(val id: Long, val name: String, val code: String, val quantity: String, val price: String, val category: String, val unit: String, val costPrice: String)
 data class InvoiceRecord(val id: Long, val number: String, val type: String, val date: String, val total: String, val status: String)
 data class InvoiceLineDraft(val itemId: Long, val itemName: String, val quantity: String, val unitPrice: String)
-data class LocalCounts(val accounts: Int, val items: Int, val salesDrafts: Int, val purchaseDrafts: Int)
+data class LocalCounts(val accounts: Int, val items: Int, val salesDrafts: Int, val purchaseDrafts: Int, val journalEntries: Int)
 data class JournalRecord(val id: Long, val date: String, val debitAccount: String, val creditAccount: String, val amount: String, val description: String)
 
 class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_rebuild.db", null, 4) {
@@ -273,7 +273,8 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
             count("accounts", "active=1"),
             count("items", "active=1"),
             count("invoices", "type='بيع' AND status='مسودة'"),
-            count("invoices", "type='شراء' AND status='مسودة'")
+            count("invoices", "type='شراء' AND status='مسودة'"),
+            count("journal_entries")
         )
     }
 
