@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -203,7 +205,7 @@ private fun ReportsScreen() {
     val balances = remember(refresh) { store.getTrialBalance() }
     val debitTotal = balances.fold(java.math.BigDecimal.ZERO) { sum, row -> sum.add(java.math.BigDecimal(row.debit)) }
     val creditTotal = balances.fold(java.math.BigDecimal.ZERO) { sum, row -> sum.add(java.math.BigDecimal(row.credit)) }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("إحصاءات السجلات", fontWeight = FontWeight.Bold)
             androidx.compose.material3.Button(onClick = { refresh++ }) { Text("تحديث") }
