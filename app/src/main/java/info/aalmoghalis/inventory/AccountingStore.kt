@@ -155,6 +155,36 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
         return rows
     }
 
+    fun updateAccount(id: Long, name: String, category: String, phone: String): Int {
+        require(name.isNotBlank()) { "اسم الحساب مطلوب" }
+        require(category in ACCOUNT_CATEGORIES) { "تصنيف الحساب غير صالح" }
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.execSQL("INSERT OR IGNORE INTO account_categories(name) VALUES(?)", arrayOf(category))
+            val categoryId = db.rawQuery("SELECT id FROM account_categories WHERE name = ?", arrayOf(category)).use { cursor ->
+                check(cursor.moveToFirst())
+                cursor.getLong(0)
+            }
+            val values = ContentValues().apply {
+                put("name", name.trim()); put("category_id", categoryId); put("phone", phone.trim())
+            }
+            val changed = db.update("accounts", values, "id = ?", arrayOf(id.toString()))
+            db.setTransactionSuccessful()
+            return changed
+        } finally { db.endTransaction() }
+    }
+
+    fun updateItem(id: Long, name: String, code: String, quantity: String, price: String, category: String, unit: String, costPrice: String): Int {
+        require(name.isNotBlank()) { "اسم الصنف مطلوب" }
+        val values = ContentValues().apply {
+            put("name", name.trim()); put("code", code.trim()); put("quantity", quantity.trim().ifEmpty { "0" })
+            put("price", price.trim().ifEmpty { "0" }); put("category", category.trim())
+            put("unit", unit.trim()); put("cost_price", costPrice.trim().ifEmpty { "0" })
+        }
+        return writableDatabase.update("items", values, "id = ?", arrayOf(id.toString()))
+    }
+
     fun deactivateAccount(id: Long): Int {
         val values = ContentValues().apply { put("active", 0) }
         return writableDatabase.update("accounts", values, "id = ?", arrayOf(id.toString()))
