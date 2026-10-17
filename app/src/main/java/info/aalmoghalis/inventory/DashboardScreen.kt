@@ -114,6 +114,8 @@ fun DashboardScreen() {
                     InvoiceManagementScreen("بيع")
                 } else if (selected == "المشتريات") {
                     InvoiceManagementScreen("شراء")
+                } else if (selected == "التقارير") {
+                    ReportsScreen()
                 } else {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -167,6 +169,28 @@ fun DashboardScreen() {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ReportsScreen() {
+    val store = remember { AccountingStore(androidx.compose.ui.platform.LocalContext.current) }
+    var refresh by remember { mutableIntStateOf(0) }
+    val counts = remember(refresh) { store.getCounts() }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("إحصاءات السجلات", fontWeight = FontWeight.Bold)
+            androidx.compose.material3.Button(onClick = { refresh++ }) { Text("تحديث") }
+        }
+        listOf("الحسابات النشطة" to counts.accounts, "الأصناف النشطة" to counts.items, "مسودات البيع" to counts.salesDrafts, "مسودات الشراء" to counts.purchaseDrafts).forEach { row ->
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+                Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(row.first)
+                    Text(row.second.toString(), fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Text("هذه إحصاءات للسجلات المحلية فقط؛ التقارير المحاسبية تحتاج إلى استكمال ترحيل القيود.")
     }
 }
 
