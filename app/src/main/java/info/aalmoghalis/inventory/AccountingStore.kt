@@ -11,9 +11,9 @@ data class ItemRecord(val id: Long, val name: String, val code: String, val quan
 data class InvoiceRecord(val id: Long, val number: String, val type: String, val date: String, val total: String, val status: String)
 data class InvoiceLineDraft(val itemId: Long, val itemName: String, val quantity: String, val unitPrice: String)
 data class LocalCounts(val accounts: Int, val items: Int, val salesDrafts: Int, val purchaseDrafts: Int, val journalEntries: Int)
-data class JournalRecord(val id: Long, val date: String, val debitAccount: String, val creditAccount: String, val amount: String, val description: String)
+data class JournalRecord(val id: Long, val kind: String, val date: String, val debitAccount: String, val creditAccount: String, val amount: String, val description: String)
 
-class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_rebuild.db", null, 4) {
+class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_rebuild.db", null, 5) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE account_categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)")
         createAccountsTable(db)
@@ -46,10 +46,11 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
             db.execSQL("ALTER TABLE items ADD COLUMN cost_price TEXT NOT NULL DEFAULT '0'")
         }
         if (oldVersion < 4) createJournalTables(db)
+        if (oldVersion == 4) db.execSQL("ALTER TABLE journal_entries ADD COLUMN kind TEXT NOT NULL DEFAULT 'قيد يومي'")
     }
 
     private fun createJournalTables(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS journal_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS journal_entries (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'قيد يومي', date TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', created_at INTEGER NOT NULL)")
         db.execSQL("CREATE TABLE IF NOT EXISTS journal_lines (id INTEGER PRIMARY KEY AUTOINCREMENT, entry_id INTEGER NOT NULL, account_id INTEGER NOT NULL, side TEXT NOT NULL, amount TEXT NOT NULL, FOREIGN KEY(entry_id) REFERENCES journal_entries(id) ON DELETE CASCADE, FOREIGN KEY(account_id) REFERENCES accounts(id))")
         db.execSQL("CREATE INDEX IF NOT EXISTS journal_lines_entry_idx ON journal_lines(entry_id)")
     }
@@ -205,7 +206,7 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
         return rows
     }
 
-    fun postBalancedJournal(date: String, debitAccountId: Long, creditAccountId: Long, amountText: String, description: String): Long {
+    fun postBalancedJournal(date: String, debitAccountId: Long, creditAccountId: Long, amountText: String, description: String, kind: String = "قيد يومي"): Long {
         require(date.isNotBlank()) { "التاريخ مطلوب" }
         require(debitAccountId != creditAccountId) { "اختر حسابين مختلفين" }
         val amount = try { BigDecimal(amountText.trim()) } catch (_: Exception) {
@@ -222,6 +223,7 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
                 }
             }
             val header = ContentValues().apply {
+                put("kind", kind)
                 put("date", date.trim())
                 put("description", description.trim())
                 put("created_at", System.currentTimeMillis())
@@ -241,13 +243,13 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
         } finally { db.endTransaction() }
     }
 
-    fun searchJournalEntries(): List<JournalRecord> {
+    fun searchJournalEntries(kind: String? = null): List<JournalRecord> {
         val rows = mutableListOf<JournalRecord>()
         readableDatabase.rawQuery(
-            "SELECT j.id,j.date,a1.name,a2.name,l1.amount,j.description FROM journal_entries j JOIN journal_lines l1 ON l1.entry_id=j.id AND l1.side='مدين' JOIN accounts a1 ON a1.id=l1.account_id JOIN journal_lines l2 ON l2.entry_id=j.id AND l2.side='دائن' JOIN accounts a2 ON a2.id=l2.account_id ORDER BY j.id DESC LIMIT 100",
-            null
+            "SELECT j.id,j.kind,j.date,a1.name,a2.name,l1.amount,j.description FROM journal_entries j JOIN journal_lines l1 ON l1.entry_id=j.id AND l1.side='مدين' JOIN accounts a1 ON a1.id=l1.account_id JOIN journal_lines l2 ON l2.entry_id=j.id AND l2.side='دائن' JOIN accounts a2 ON a2.id=l2.account_id WHERE (? = '' OR j.kind = ?) ORDER BY j.id DESC LIMIT 100",
+            arrayOf(kind.orEmpty(), kind.orEmpty())
         ).use { cursor ->
-            while (cursor.moveToNext()) rows += JournalRecord(cursor.getLong(0), cursor.getString(1), cursor.getString(2), cursor.getString(3), cursor.getString(4), cursor.getString(5))
+            while (cursor.moveToNext()) rows += JournalRecord(cursor.getLong(0), cursor.getString(1), cursor.getString(2), cursor.getString(3), cursor.getString(4), cursor.getString(5), cursor.getString(6))
         }
         return rows
     }
