@@ -1,5 +1,17 @@
 package info.aalmoghalis.inventory
 
+import android.content.Context
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.pdf.PdfDocument
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextDirectionHeuristics
+import android.text.TextPaint
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -47,6 +59,21 @@ fun InvoiceManagementScreen(type: String) {
     var refresh by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf("") }
     val records = remember(query, refresh, type) { store.searchInvoices(type, query) }
+    var pdfInvoiceId by remember { mutableStateOf<Long?>(null) }
+    var pdfStatus by remember { mutableStateOf("") }
+    val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        val id = pdfInvoiceId
+        if (uri != null && id != null) {
+            try {
+                val details = store.getInvoiceDetails(id) ?: throw IllegalStateException("الفاتورة غير موجودة")
+                writeInvoicePdf(context, uri, details)
+                pdfStatus = "تم تصدير الفاتورة إلى PDF."
+            } catch (e: Exception) {
+                pdfStatus = e.message ?: "تعذر إنشاء ملف PDF."
+            }
+        }
+        pdfInvoiceId = null
+    }
     val suggestions = remember(itemQuery, selectedItem) {
         if (itemQuery.isBlank() || selectedItem != null) emptyList() else store.searchItems(itemQuery).take(5)
     }
@@ -66,6 +93,7 @@ fun InvoiceManagementScreen(type: String) {
             }) { Text("فاتورة جديدة") }
         }
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("بحث برقم الفاتورة") }, singleLine = true)
+        if (pdfStatus.isNotBlank()) Text(pdfStatus, color = Color(0xFF64748B))
         if (records.isEmpty()) Text(if (query.isBlank()) "لا توجد فواتير محفوظة بعد." else "لا توجد فواتير بهذا الرقم.")
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(records, key = { it.id }) { invoice ->
@@ -74,6 +102,10 @@ fun InvoiceManagementScreen(type: String) {
                         Text("فاتورة رقم ${invoice.number}", fontWeight = FontWeight.Bold)
                         Text("التاريخ: ${invoice.date}   |   الإجمالي: ${invoice.total}", color = Color(0xFF64748B))
                         Text(invoice.status, color = Color(0xFFA67C00))
+                        TextButton(onClick = {
+                            pdfInvoiceId = invoice.id
+                            pdfLauncher.launch("invoice-${invoice.number}.pdf")
+                        }) { Text("تصدير PDF") }
                     }
                 }
             }
@@ -147,5 +179,57 @@ fun InvoiceManagementScreen(type: String) {
             },
             dismissButton = { TextButton(onClick = { showForm = false }) { Text("إلغاء") } }
         )
+    }
+}
+
+
+private fun writeInvoicePdf(context: Context, uri: Uri, details: InvoiceDetails) {
+    val document = PdfDocument()
+    var pageNumber = 0
+    var page: PdfDocument.Page? = null
+    var y = 0f
+    val paint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = android.graphics.Color.BLACK }
+
+    fun newPage() {
+        if (page != null) document.finishPage(page!!)
+        pageNumber++
+        page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNumber).create())
+        y = 42f
+    }
+
+    fun drawLine(text: String, size: Float = 13f, bold: Boolean = false) {
+        paint.textSize = size
+        paint.typeface = if (bold) Typeface.create(Typeface.DEFAULT, Typeface.BOLD) else Typeface.DEFAULT
+        val layout = StaticLayout(
+            text, 0, text.length, paint, 500, Layout.Alignment.ALIGN_OPPOSITE,
+            TextDirectionHeuristics.RTL, 1.0f, 0.0f, false
+        )
+        if (y + layout.height > 790f) newPage()
+        val canvas = page!!.canvas
+        canvas.save()
+        canvas.translate(48f, y)
+        layout.draw(canvas)
+        canvas.restore()
+        y += layout.height + 10f
+    }
+
+    try {
+        newPage()
+        drawLine("محاسب سوفت", 22f, true)
+        drawLine(if (details.invoice.type == "بيع") "فاتورة بيع" else "فاتورة شراء", 18f, true)
+        drawLine("رقم الفاتورة: ${details.invoice.number}")
+        drawLine("التاريخ: ${details.invoice.date}")
+        drawLine("الحالة: ${details.invoice.status}")
+        drawLine("تفاصيل الأصناف", 15f, true)
+        details.lines.forEachIndexed { index, line ->
+            drawLine("${index + 1}. ${line.itemName} | الكمية: ${line.quantity} | سعر الوحدة: ${line.unitPrice} | الإجمالي: ${line.total}")
+        }
+        drawLine("الإجمالي النهائي: ${details.invoice.total}", 18f, true)
+        val output = context.contentResolver.openOutputStream(uri)
+            ?: throw IllegalStateException("تعذر فتح ملف PDF للحفظ")
+        output.use { document.writeTo(it) }
+    } finally {
+        if (page != null) document.finishPage(page!!)
+        document.close()
     }
 }
