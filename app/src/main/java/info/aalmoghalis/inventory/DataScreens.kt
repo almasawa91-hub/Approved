@@ -110,6 +110,9 @@ fun ItemManagementScreen() {
     var code by remember { mutableStateOf("") }
     var quantity by remember { mutableStateOf("0") }
     var price by remember { mutableStateOf("0") }
+    var costPrice by remember { mutableStateOf("0") }
+    var itemCategory by remember { mutableStateOf("") }
+    var unit by remember { mutableStateOf("") }
     var showForm by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     val records = remember(query, refresh) { store.searchItems(query) }
@@ -117,7 +120,7 @@ fun ItemManagementScreen() {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("الأصناف والمخزون", fontWeight = FontWeight.Bold)
-            Button(onClick = { name = ""; code = ""; quantity = "0"; price = "0"; showForm = true }) { Text("إضافة صنف") }
+            Button(onClick = { name = ""; code = ""; quantity = "0"; price = "0"; costPrice = "0"; itemCategory = ""; unit = ""; showForm = true }) { Text("إضافة صنف") }
         }
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("بحث باسم الصنف أو رمزه") }, singleLine = true)
         if (records.isEmpty()) Text(if (query.isBlank()) "لا توجد أصناف محفوظة بعد." else "لا توجد نتائج تبدأ بهذه الأحرف.")
@@ -126,7 +129,8 @@ fun ItemManagementScreen() {
                 Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
                         Text(item.name, fontWeight = FontWeight.Bold)
-                        Text("الرمز: ${item.code.ifBlank { "—" }}   |   الكمية: ${item.quantity}   |   السعر: ${item.price}", color = Color(0xFF64748B))
+                        Text("التصنيف: ${item.category.ifBlank { "عام" }}   |   الوحدة: ${item.unit.ifBlank { "—" }}", color = Color(0xFF64748B))
+                        Text("الرمز: ${item.code.ifBlank { "—" }}   |   الكمية: ${item.quantity}   |   البيع: ${item.price}   |   التكلفة: ${item.costPrice}", color = Color(0xFF64748B))
                     }
                 }
             }
@@ -141,14 +145,17 @@ fun ItemManagementScreen() {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(name, { name = it }, label = { Text("اسم الصنف") }, singleLine = true)
                     OutlinedTextField(code, { code = it }, label = { Text("الرمز / الباركود") }, singleLine = true)
+                    OutlinedTextField(itemCategory, { itemCategory = it }, label = { Text("تصنيف الصنف") }, singleLine = true)
+                    OutlinedTextField(unit, { unit = it }, label = { Text("وحدة القياس") }, singleLine = true)
                     OutlinedTextField(quantity, { quantity = it }, label = { Text("الكمية الافتتاحية") }, singleLine = true)
                     OutlinedTextField(price, { price = it }, label = { Text("سعر البيع") }, singleLine = true)
+                    OutlinedTextField(costPrice, { costPrice = it }, label = { Text("سعر التكلفة") }, singleLine = true)
                 }
             },
             confirmButton = {
                 Button(onClick = {
                     if (name.isNotBlank()) {
-                        store.addItem(name, code, quantity, price)
+                        store.addItem(name, code, quantity, price, itemCategory, unit, costPrice)
                         query = ""
                         refresh++
                         showForm = false
