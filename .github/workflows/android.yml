@@ -3,7 +3,13 @@ name: Android APK
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '**.md'
   workflow_dispatch:
+
+concurrency:
+  group: approved-android-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
