@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,7 +46,7 @@ fun JournalScreen(kind: String = "قيد يومي") {
     var refresh by remember { mutableIntStateOf(0) }
     val entries = remember(refresh, kind) { store.searchJournalEntries(kind) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text(when (kind) { "سند قبض" -> "سندات القبض"; "سند صرف" -> "سندات الصرف"; else -> "القيود اليومية" }, fontWeight = FontWeight.Bold)
         OutlinedTextField(date, { date = it; error = "" }, modifier = Modifier.fillMaxWidth(), label = { Text("التاريخ (YYYY-MM-DD)") }, singleLine = true)
         Button(onClick = { pickDebit = true }, modifier = Modifier.fillMaxWidth()) {
@@ -70,8 +72,8 @@ fun JournalScreen(kind: String = "قيد يومي") {
         Text("يُحفظ السجل فقط إذا كان المبلغ صالحاً والحسابان مختلفين؛ ويُسجل المدين والدائن بالقيمة نفسها.", color = Color(0xFF64748B))
         Text(if (kind == "قيد يومي") "القيود المحفوظة" else "السندات المحفوظة", fontWeight = FontWeight.Bold)
         if (entries.isEmpty()) Text("لا توجد قيود يومية بعد.")
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(entries, key = { it.id }) { entry ->
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            entries.take(30).forEach { entry ->
                 Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
                     Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("${entry.debitAccount} ← ${entry.creditAccount}", fontWeight = FontWeight.Bold)
