@@ -187,7 +187,7 @@ private fun ReportsScreen() {
             Text("إحصاءات السجلات", fontWeight = FontWeight.Bold)
             androidx.compose.material3.Button(onClick = { refresh++ }) { Text("تحديث") }
         }
-        listOf("الحسابات النشطة" to counts.accounts, "الأصناف النشطة" to counts.items, "مسودات البيع" to counts.salesDrafts, "مسودات الشراء" to counts.purchaseDrafts).forEach { row ->
+        listOf("الحسابات النشطة" to counts.accounts, "الأصناف النشطة" to counts.items, "مسودات البيع" to counts.salesDrafts, "مسودات الشراء" to counts.purchaseDrafts, "القيود اليومية" to counts.journalEntries).forEach { row ->
             Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
                 Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(row.first)
