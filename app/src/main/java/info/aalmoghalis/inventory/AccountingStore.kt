@@ -4,9 +4,11 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import java.math.BigDecimal
 
 data class AccountRecord(val id: Long, val name: String, val category: String, val phone: String)
 data class ItemRecord(val id: Long, val name: String, val code: String, val quantity: String, val price: String, val category: String, val unit: String, val costPrice: String)
+data class InvoiceRecord(val id: Long, val number: String, val type: String, val date: String, val total: String, val status: String)
 
 class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_rebuild.db", null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
@@ -73,6 +75,37 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
             arrayOf(prefix.trim() + "%", category.orEmpty(), category.orEmpty())
         ).use { cursor ->
             while (cursor.moveToNext()) rows += AccountRecord(cursor.getLong(0), cursor.getString(1), cursor.getString(2), cursor.getString(3))
+        }
+        return rows
+    }
+
+    fun addInvoiceDraft(number: String, type: String, date: String, total: String): Long {
+        val cleanNumber = number.trim()
+        require(cleanNumber.isNotEmpty()) { "رقم الفاتورة مطلوب" }
+        require(type == "بيع" || type == "شراء") { "نوع الفاتورة غير صالح" }
+        require(date.isNotBlank()) { "تاريخ الفاتورة مطلوب" }
+        val amount = try { BigDecimal(total.trim()) } catch (_: Exception) { throw IllegalArgumentException("الإجمالي غير صالح") }
+        require(amount >= BigDecimal.ZERO) { "الإجمالي لا يمكن أن يكون سالباً" }
+        val values = ContentValues().apply {
+            put("number", cleanNumber)
+            put("type", type)
+            put("date", date.trim())
+            put("total", amount.stripTrailingZeros().toPlainString())
+            put("status", "مسودة")
+        }
+        return writableDatabase.insertOrThrow("invoices", null, values)
+    }
+
+    fun searchInvoices(type: String, prefix: String = ""): List<InvoiceRecord> {
+        val rows = mutableListOf<InvoiceRecord>()
+        readableDatabase.rawQuery(
+            "SELECT id,number,type,date,total,status FROM invoices WHERE type=? AND number LIKE ? ORDER BY id DESC LIMIT 100",
+            arrayOf(type, prefix.trim() + "%")
+        ).use { cursor ->
+            while (cursor.moveToNext()) rows += InvoiceRecord(
+                cursor.getLong(0), cursor.getString(1), cursor.getString(2),
+                cursor.getString(3), cursor.getString(4), cursor.getString(5)
+            )
         }
         return rows
     }
