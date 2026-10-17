@@ -116,6 +116,8 @@ fun DashboardScreen() {
                     InvoiceManagementScreen("بيع")
                 } else if (selected == "المشتريات") {
                     InvoiceManagementScreen("شراء")
+                } else if (selected == "السندات") {
+                    VoucherHomeScreen()
                 } else if (selected == "القيود اليومية") {
                     JournalScreen()
                 } else if (selected == "التقارير") {
@@ -173,6 +175,22 @@ fun DashboardScreen() {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VoucherHomeScreen() {
+    var kind by remember { mutableStateOf("سند قبض") }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { kind = "سند قبض" }) {
+                Text(if (kind == "سند قبض") "✓ سند قبض" else "سند قبض")
+            }
+            TextButton(onClick = { kind = "سند صرف" }) {
+                Text(if (kind == "سند صرف") "✓ سند صرف" else "سند صرف")
+            }
+        }
+        JournalScreen(kind)
     }
 }
 
