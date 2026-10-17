@@ -17,9 +17,11 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.onDispose
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -33,6 +35,7 @@ import java.math.BigDecimal
 fun InvoiceManagementScreen(type: String) {
     val context = LocalContext.current
     val store = remember { AccountingStore(context) }
+    DisposableEffect(store) { onDispose { store.close() } }
     var query by remember { mutableStateOf("") }
     var number by remember { mutableStateOf("") }
     var date by remember { mutableStateOf("") }
