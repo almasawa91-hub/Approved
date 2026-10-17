@@ -61,11 +61,11 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
         }
     }
 
-    fun searchAccounts(prefix: String): List<AccountRecord> {
+    fun searchAccounts(prefix: String, category: String? = null): List<AccountRecord> {
         val rows = mutableListOf<AccountRecord>()
         readableDatabase.rawQuery(
-            "SELECT a.id,a.name,c.name,a.phone FROM accounts a JOIN account_categories c ON c.id=a.category_id WHERE a.active=1 AND a.name LIKE ? ORDER BY a.name COLLATE NOCASE LIMIT 30",
-            arrayOf(prefix.trim() + "%")
+            "SELECT a.id,a.name,c.name,a.phone FROM accounts a JOIN account_categories c ON c.id=a.category_id WHERE a.active=1 AND a.name LIKE ? AND (? = '' OR c.name = ?) ORDER BY a.name COLLATE NOCASE LIMIT 30",
+            arrayOf(prefix.trim() + "%", category.orEmpty(), category.orEmpty())
         ).use { cursor ->
             while (cursor.moveToNext()) rows += AccountRecord(cursor.getLong(0), cursor.getString(1), cursor.getString(2), cursor.getString(3))
         }
