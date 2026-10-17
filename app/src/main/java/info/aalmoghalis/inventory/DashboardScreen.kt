@@ -174,7 +174,8 @@ fun DashboardScreen() {
 
 @Composable
 private fun ReportsScreen() {
-    val store = remember { AccountingStore(androidx.compose.ui.platform.LocalContext.current) }
+    val reportContext = androidx.compose.ui.platform.LocalContext.current
+    val store = remember { AccountingStore(reportContext) }
     var refresh by remember { mutableIntStateOf(0) }
     val counts = remember(refresh) { store.getCounts() }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
