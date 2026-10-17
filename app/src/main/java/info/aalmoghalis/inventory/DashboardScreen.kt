@@ -2,6 +2,9 @@ package info.aalmoghalis.inventory
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.content.Intent
+import android.database.sqlite.SQLiteDatabase
+import java.io.File
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,9 +41,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.onDispose
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -187,15 +192,18 @@ fun DashboardScreen() {
 @Composable
 private fun BackupScreen() {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val store = remember { AccountingStore(context) }
+    DisposableEffect(store) { onDispose { store.close() } }
     var status by remember { mutableStateOf("") }
+    var pendingRestore by remember { mutableStateOf<File?>(null) }
+
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri ->
         if (uri != null) {
             try {
-                val helper = AccountingStore(context)
-                helper.writableDatabase
-                helper.close()
+                store.writableDatabase
+                store.close()
                 val source = context.getDatabasePath("muhasib_rebuild.db")
                 check(source.exists()) { "ملف قاعدة البيانات غير موجود" }
                 val output = context.contentResolver.openOutputStream(uri)
@@ -207,15 +215,87 @@ private fun BackupScreen() {
             }
         }
     }
+
+    val restoreLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val candidate = File(context.cacheDir, "muhasib-restore-candidate.db")
+            try {
+                val input = context.contentResolver.openInputStream(uri)
+                    ?: throw IllegalStateException("تعذر قراءة ملف النسخة")
+                input.use { source -> candidate.outputStream().use { target -> source.copyTo(target) } }
+                val checkDb = SQLiteDatabase.openDatabase(candidate.absolutePath, null, SQLiteDatabase.OPEN_READONLY)
+                val version = checkDb.rawQuery("PRAGMA user_version", null).use { cursor ->
+                    check(cursor.moveToFirst())
+                    cursor.getInt(0)
+                }
+                val requiredTables = listOf("account_categories", "accounts", "items", "invoices", "invoice_lines", "journal_entries", "journal_lines")
+                val validTables = requiredTables.all { table ->
+                    checkDb.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name=?", arrayOf(table)).use { it.moveToFirst() }
+                }
+                val integrity = checkDb.rawQuery("PRAGMA quick_check", null).use { cursor ->
+                    cursor.moveToFirst() && cursor.getString(0) == "ok"
+                }
+                checkDb.close()
+                require(version == 5 && validTables && integrity) {
+                    "الملف ليس نسخة سليمة من قاعدة محاسب سوفت التجريبية الحالية."
+                }
+                pendingRestore = candidate
+                status = "تم فحص النسخة؛ أكّد الاستعادة لاستبدال البيانات الحالية."
+            } catch (e: Exception) {
+                candidate.delete()
+                status = e.message ?: "تعذر التحقق من النسخة الاحتياطية."
+            }
+        }
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("النسخ الاحتياطي", fontWeight = FontWeight.Bold)
-        Text("احفظ نسخة من قاعدة البيانات المحلية في ملف يمكنك الاحتفاظ به أو نقله إلى هاتف آخر.")
+        Text("النسخ الاحتياطي والاستعادة", fontWeight = FontWeight.Bold)
+        Text("صدّر قاعدة البيانات إلى ملف، أو استعد نسخة أنشأها هذا الإصدار التجريبي.")
         androidx.compose.material3.Button(
             onClick = { exportLauncher.launch("muhasib-backup-${System.currentTimeMillis()}.db") },
             modifier = Modifier.fillMaxWidth()
         ) { Text("تصدير قاعدة البيانات") }
+        androidx.compose.material3.Button(
+            onClick = { restoreLauncher.launch(arrayOf("*/*")) },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("اختيار نسخة للاستعادة") }
         if (status.isNotBlank()) Text(status, color = Color(0xFF64748B))
-        Text("استعادة النسخ الاحتياطية غير مفعلة بعد؛ لا تستبدل ملف قاعدة البيانات يدوياً أثناء استخدام التطبيق.")
+        Text("الاستعادة تستبدل قاعدة البيانات الحالية؛ احتفظ بنسخة احتياطية قبل المتابعة.")
+    }
+
+    if (pendingRestore != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pendingRestore?.delete(); pendingRestore = null },
+            title = { Text("تأكيد استعادة النسخة") },
+            text = { Text("سيتم استبدال بيانات التطبيق الحالية بالنسخة المختارة. لا يمكن التراجع عن هذا الإجراء.") },
+            confirmButton = {
+                androidx.compose.material3.Button(onClick = {
+                    try {
+                        store.close()
+                        val database = context.getDatabasePath("muhasib_rebuild.db")
+                        File(database.absolutePath + "-wal").delete()
+                        File(database.absolutePath + "-shm").delete()
+                        File(database.absolutePath + "-journal").delete()
+                        pendingRestore!!.copyTo(database, overwrite = true)
+                        pendingRestore!!.delete()
+                        pendingRestore = null
+                        context.startActivity(
+                            Intent(context, MainActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                        )
+                    } catch (e: Exception) {
+                        status = e.message ?: "تعذرت استعادة النسخة."
+                        pendingRestore?.delete()
+                        pendingRestore = null
+                    }
+                }) { Text("استبدال البيانات") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { pendingRestore?.delete(); pendingRestore = null }) { Text("إلغاء") }
+            }
+        )
     }
 }
 
@@ -239,6 +319,7 @@ private fun VoucherHomeScreen() {
 private fun ReportsScreen() {
     val reportContext = androidx.compose.ui.platform.LocalContext.current
     val store = remember { AccountingStore(reportContext) }
+    DisposableEffect(store) { onDispose { store.close() } }
     var refresh by remember { mutableIntStateOf(0) }
     val counts = remember(refresh) { store.getCounts() }
     val balances = remember(refresh) { store.getTrialBalance() }
