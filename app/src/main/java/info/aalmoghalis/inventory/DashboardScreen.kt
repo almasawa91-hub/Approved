@@ -110,6 +110,10 @@ fun DashboardScreen() {
                     AccountManagementScreen()
                 } else if (selected == "المخزون") {
                     ItemManagementScreen()
+                } else if (selected == "المبيعات") {
+                    InvoiceManagementScreen("بيع")
+                } else if (selected == "المشتريات") {
+                    InvoiceManagementScreen("شراء")
                 } else {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
