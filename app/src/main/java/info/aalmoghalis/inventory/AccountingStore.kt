@@ -12,6 +12,8 @@ data class InvoiceRecord(val id: Long, val number: String, val type: String, val
 data class InvoiceLineDraft(val itemId: Long, val itemName: String, val quantity: String, val unitPrice: String)
 data class LocalCounts(val accounts: Int, val items: Int, val salesDrafts: Int, val purchaseDrafts: Int, val journalEntries: Int)
 data class JournalRecord(val id: Long, val kind: String, val date: String, val debitAccount: String, val creditAccount: String, val amount: String, val description: String)
+data class AccountBalance(val id: Long, val name: String, val category: String, val debit: String, val credit: String)
+private data class MutableAccountBalance(val id: Long, val name: String, val category: String, var debit: BigDecimal = BigDecimal.ZERO, var credit: BigDecimal = BigDecimal.ZERO)
 
 class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_rebuild.db", null, 5) {
     override fun onCreate(db: SQLiteDatabase) {
@@ -252,6 +254,25 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
             while (cursor.moveToNext()) rows += JournalRecord(cursor.getLong(0), cursor.getString(1), cursor.getString(2), cursor.getString(3), cursor.getString(4), cursor.getString(5), cursor.getString(6))
         }
         return rows
+    }
+
+    fun getTrialBalance(): List<AccountBalance> {
+        val totals = linkedMapOf<Long, MutableAccountBalance>()
+        readableDatabase.rawQuery(
+            "SELECT a.id,a.name,c.name,l.side,l.amount FROM journal_lines l JOIN accounts a ON a.id=l.account_id JOIN account_categories c ON c.id=a.category_id ORDER BY a.name COLLATE NOCASE",
+            null
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(0)
+                val row = totals.getOrPut(id) { MutableAccountBalance(id, cursor.getString(1), cursor.getString(2)) }
+                val amount = BigDecimal(cursor.getString(4))
+                if (cursor.getString(3) == "مدين") row.debit = row.debit.add(amount)
+                else row.credit = row.credit.add(amount)
+            }
+        }
+        return totals.values.map { row ->
+            AccountBalance(row.id, row.name, row.category, row.debit.stripTrailingZeros().toPlainString(), row.credit.stripTrailingZeros().toPlainString())
+        }
     }
 
     fun deactivateAccount(id: Long): Int {
