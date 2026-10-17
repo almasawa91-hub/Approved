@@ -41,6 +41,7 @@ fun AccountManagementScreen() {
     var categoryFilter by remember { mutableStateOf(CategoryNames.first()) }
     var showForm by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
+    var pendingDisable by remember { mutableStateOf<AccountRecord?>(null) }
     val records = remember(query, refresh, categoryFilter) { store.searchAccounts(query, categoryFilter) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -65,7 +66,7 @@ fun AccountManagementScreen() {
                         Text(account.name, fontWeight = FontWeight.Bold)
                         Text(account.category, color = Color(0xFFA67C00))
                         if (account.phone.isNotBlank()) Text(account.phone, color = Color(0xFF64748B))
-                        TextButton(onClick = { store.deactivateAccount(account.id); refresh++ }) { Text("تعطيل الحساب") }
+                        TextButton(onClick = { pendingDisable = account }) { Text("تعطيل الحساب") }
                     }
                 }
             }
@@ -100,6 +101,21 @@ fun AccountManagementScreen() {
             dismissButton = { TextButton(onClick = { showForm = false }) { Text("إلغاء") } }
         )
     }
+    if (pendingDisable != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDisable = null },
+            title = { Text("تعطيل الحساب؟") },
+            text = { Text("سيبقى السجل محفوظاً ولن يظهر في القائمة النشطة.") },
+            confirmButton = {
+                Button(onClick = {
+                    pendingDisable?.let { store.deactivateAccount(it.id) }
+                    pendingDisable = null
+                    refresh++
+                }) { Text("تأكيد التعطيل") }
+            },
+            dismissButton = { TextButton(onClick = { pendingDisable = null }) { Text("إلغاء") } }
+        )
+    }
 }
 
 @Composable
@@ -116,6 +132,7 @@ fun ItemManagementScreen() {
     var unit by remember { mutableStateOf("") }
     var showForm by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
+    var pendingDisable by remember { mutableStateOf<ItemRecord?>(null) }
     val records = remember(query, refresh) { store.searchItems(query) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -132,7 +149,7 @@ fun ItemManagementScreen() {
                         Text(item.name, fontWeight = FontWeight.Bold)
                         Text("التصنيف: ${item.category.ifBlank { "عام" }}   |   الوحدة: ${item.unit.ifBlank { "—" }}", color = Color(0xFF64748B))
                         Text("الرمز: ${item.code.ifBlank { "—" }}   |   الكمية: ${item.quantity}   |   البيع: ${item.price}   |   التكلفة: ${item.costPrice}", color = Color(0xFF64748B))
-                        TextButton(onClick = { store.deactivateItem(item.id); refresh++ }) { Text("تعطيل الصنف") }
+                        TextButton(onClick = { pendingDisable = item }) { Text("تعطيل الصنف") }
                     }
                 }
             }
@@ -165,6 +182,21 @@ fun ItemManagementScreen() {
                 }) { Text("حفظ") }
             },
             dismissButton = { TextButton(onClick = { showForm = false }) { Text("إلغاء") } }
+        )
+    }
+    if (pendingDisable != null) {
+        AlertDialog(
+            onDismissRequest = { pendingDisable = null },
+            title = { Text("تعطيل الصنف؟") },
+            text = { Text("سيبقى السجل محفوظاً ولن يظهر في قائمة المخزون النشطة.") },
+            confirmButton = {
+                Button(onClick = {
+                    pendingDisable?.let { store.deactivateItem(it.id) }
+                    pendingDisable = null
+                    refresh++
+                }) { Text("تأكيد التعطيل") }
+            },
+            dismissButton = { TextButton(onClick = { pendingDisable = null }) { Text("إلغاء") } }
         )
     }
 }
