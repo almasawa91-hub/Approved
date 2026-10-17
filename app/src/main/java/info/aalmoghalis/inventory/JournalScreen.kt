@@ -29,7 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun JournalScreen() {
+fun JournalScreen(kind: String = "قيد يومي") {
     val context = LocalContext.current
     val store = remember { AccountingStore(context) }
     val accounts = remember { store.listActiveAccounts() }
@@ -42,10 +42,10 @@ fun JournalScreen() {
     var description by remember { mutableStateOf("") }
     var error by remember { mutableStateOf("") }
     var refresh by remember { mutableIntStateOf(0) }
-    val entries = remember(refresh) { store.searchJournalEntries() }
+    val entries = remember(refresh, kind) { store.searchJournalEntries(kind) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("القيود اليومية", fontWeight = FontWeight.Bold)
+        Text(when (kind) { "سند قبض" -> "سندات القبض"; "سند صرف" -> "سندات الصرف"; else -> "القيود اليومية" }, fontWeight = FontWeight.Bold)
         OutlinedTextField(date, { date = it; error = "" }, modifier = Modifier.fillMaxWidth(), label = { Text("التاريخ (YYYY-MM-DD)") }, singleLine = true)
         Button(onClick = { pickDebit = true }, modifier = Modifier.fillMaxWidth()) {
             Text("الحساب المدين: ${debit?.name ?: "اختر حساباً"}")
@@ -60,15 +60,15 @@ fun JournalScreen() {
             try {
                 val d = debit ?: throw IllegalArgumentException("اختر الحساب المدين")
                 val c = credit ?: throw IllegalArgumentException("اختر الحساب الدائن")
-                store.postBalancedJournal(date, d.id, c.id, amount, description)
+                store.postBalancedJournal(date, d.id, c.id, amount, description, kind)
                 date = ""; amount = ""; description = ""; debit = null; credit = null
                 error = ""; refresh++
             } catch (e: Exception) {
                 error = e.message ?: "تعذر حفظ القيد"
             }
-        }, modifier = Modifier.fillMaxWidth()) { Text("حفظ القيد المتوازن") }
-        Text("يُحفظ القيد فقط إذا كان المبلغ صالحاً والحسابان مختلفين؛ ويُسجل المدين والدائن بالقيمة نفسها.", color = Color(0xFF64748B))
-        Text("القيود المحفوظة", fontWeight = FontWeight.Bold)
+        }, modifier = Modifier.fillMaxWidth()) { Text(if (kind == "قيد يومي") "حفظ القيد المتوازن" else "حفظ السند") }
+        Text("يُحفظ السجل فقط إذا كان المبلغ صالحاً والحسابان مختلفين؛ ويُسجل المدين والدائن بالقيمة نفسها.", color = Color(0xFF64748B))
+        Text(if (kind == "قيد يومي") "القيود المحفوظة" else "السندات المحفوظة", fontWeight = FontWeight.Bold)
         if (entries.isEmpty()) Text("لا توجد قيود يومية بعد.")
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(entries, key = { it.id }) { entry ->
