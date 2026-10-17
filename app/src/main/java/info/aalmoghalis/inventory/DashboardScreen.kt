@@ -200,6 +200,9 @@ private fun ReportsScreen() {
     val store = remember { AccountingStore(reportContext) }
     var refresh by remember { mutableIntStateOf(0) }
     val counts = remember(refresh) { store.getCounts() }
+    val balances = remember(refresh) { store.getTrialBalance() }
+    val debitTotal = balances.fold(java.math.BigDecimal.ZERO) { sum, row -> sum.add(java.math.BigDecimal(row.debit)) }
+    val creditTotal = balances.fold(java.math.BigDecimal.ZERO) { sum, row -> sum.add(java.math.BigDecimal(row.credit)) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("إحصاءات السجلات", fontWeight = FontWeight.Bold)
@@ -210,6 +213,27 @@ private fun ReportsScreen() {
                 Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(row.first)
                     Text(row.second.toString(), fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        Text("ميزان المراجعة", fontWeight = FontWeight.Bold)
+        if (balances.isEmpty()) {
+            Text("لا توجد قيود يومية محفوظة لعرض أرصدة الحسابات.")
+        } else {
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("إجمالي المدين: ${debitTotal.stripTrailingZeros().toPlainString()}")
+                    Text("إجمالي الدائن: ${creditTotal.stripTrailingZeros().toPlainString()}")
+                    Text(if (debitTotal.compareTo(creditTotal) == 0) "الميزان متوازن" else "يوجد فرق بين الإجماليين", fontWeight = FontWeight.Bold)
+                }
+            }
+            balances.forEach { balance ->
+                Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(balance.name, fontWeight = FontWeight.Bold)
+                        Text(balance.category, color = Color(0xFFA67C00))
+                        Text("مدين: ${balance.debit}   |   دائن: ${balance.credit}", color = Color(0xFF64748B))
+                    }
                 }
             }
         }
