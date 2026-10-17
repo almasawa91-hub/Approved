@@ -106,6 +106,11 @@ fun DashboardScreen() {
                     }
                 }
                 Spacer(Modifier.height(18.dp))
+                if (selected == "الحسابات") {
+                    AccountManagementScreen()
+                } else if (selected == "المخزون") {
+                    ItemManagementScreen()
+                } else {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = Navy),
@@ -154,6 +159,7 @@ fun DashboardScreen() {
                             }
                         }
                     }
+                }
                 }
             }
         }
