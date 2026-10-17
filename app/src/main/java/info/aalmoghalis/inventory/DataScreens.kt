@@ -65,6 +65,7 @@ fun AccountManagementScreen() {
                         Text(account.name, fontWeight = FontWeight.Bold)
                         Text(account.category, color = Color(0xFFA67C00))
                         if (account.phone.isNotBlank()) Text(account.phone, color = Color(0xFF64748B))
+                        TextButton(onClick = { store.deactivateAccount(account.id); refresh++ }) { Text("تعطيل الحساب") }
                     }
                 }
             }
@@ -131,6 +132,7 @@ fun ItemManagementScreen() {
                         Text(item.name, fontWeight = FontWeight.Bold)
                         Text("التصنيف: ${item.category.ifBlank { "عام" }}   |   الوحدة: ${item.unit.ifBlank { "—" }}", color = Color(0xFF64748B))
                         Text("الرمز: ${item.code.ifBlank { "—" }}   |   الكمية: ${item.quantity}   |   البيع: ${item.price}   |   التكلفة: ${item.costPrice}", color = Color(0xFF64748B))
+                        TextButton(onClick = { store.deactivateItem(item.id); refresh++ }) { Text("تعطيل الصنف") }
                     }
                 }
             }
