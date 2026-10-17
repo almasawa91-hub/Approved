@@ -10,6 +10,7 @@ data class AccountRecord(val id: Long, val name: String, val category: String, v
 data class ItemRecord(val id: Long, val name: String, val code: String, val quantity: String, val price: String, val category: String, val unit: String, val costPrice: String)
 data class InvoiceRecord(val id: Long, val number: String, val type: String, val date: String, val total: String, val status: String)
 data class InvoiceLineDraft(val itemId: Long, val itemName: String, val quantity: String, val unitPrice: String)
+data class LocalCounts(val accounts: Int, val items: Int, val salesDrafts: Int, val purchaseDrafts: Int)
 
 class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_rebuild.db", null, 3) {
     override fun onCreate(db: SQLiteDatabase) {
@@ -152,6 +153,21 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
             while (cursor.moveToNext()) rows += ItemRecord(cursor.getLong(0), cursor.getString(1), cursor.getString(2), cursor.getString(3), cursor.getString(4), cursor.getString(5), cursor.getString(6), cursor.getString(7))
         }
         return rows
+    }
+
+    fun getCounts(): LocalCounts {
+        fun count(table: String, where: String = ""): Int {
+            val sql = if (where.isBlank()) "SELECT COUNT(*) FROM $table" else "SELECT COUNT(*) FROM $table WHERE $where"
+            readableDatabase.rawQuery(sql, null).use { cursor ->
+                return if (cursor.moveToFirst()) cursor.getInt(0) else 0
+            }
+        }
+        return LocalCounts(
+            count("accounts", "active=1"),
+            count("items", "active=1"),
+            count("invoices", "type='بيع' AND status='مسودة'"),
+            count("invoices", "type='شراء' AND status='مسودة'")
+        )
     }
 
     companion object {
