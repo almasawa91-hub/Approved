@@ -60,6 +60,7 @@ private val modules = listOf(
     AppModule("الحسابات", "العملاء والموردون", Icons.Default.People),
     AppModule("المخزون", "الأصناف وحركة المخزون", Icons.Default.Inventory2),
     AppModule("السندات", "قبض وصرف", Icons.Default.ReceiptLong),
+    AppModule("القيود اليومية", "قيود مدين ودائن", Icons.Default.ReceiptLong),
     AppModule("الصناديق والبنوك", "الأرصدة والحركات", Icons.Default.AccountBalanceWallet),
     AppModule("التقارير", "تقارير الحسابات والمبيعات", Icons.Default.Assessment),
     AppModule("الإعدادات", "إعدادات التطبيق", Icons.Default.Settings)
@@ -115,6 +116,8 @@ fun DashboardScreen() {
                     InvoiceManagementScreen("بيع")
                 } else if (selected == "المشتريات") {
                     InvoiceManagementScreen("شراء")
+                } else if (selected == "القيود اليومية") {
+                    JournalScreen()
                 } else if (selected == "التقارير") {
                     ReportsScreen()
                 } else {
