@@ -8,10 +8,10 @@ import android.database.sqlite.SQLiteOpenHelper
 data class AccountRecord(val id: Long, val name: String, val category: String, val phone: String)
 data class ItemRecord(val id: Long, val name: String, val code: String, val quantity: String, val price: String)
 
-class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_rebuild.db", null, 1) {
+class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_rebuild.db", null, 2) {
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE account_categories (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE)")
-        db.execSQL("CREATE TABLE accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, category TEXT NOT NULL, phone TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1)")
+        db.execSQL("CREATE TABLE account_categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL UNIQUE)")
+        createAccountsTable(db)
         db.execSQL("CREATE INDEX accounts_name_idx ON accounts(name)")
         db.execSQL("CREATE TABLE items (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, code TEXT NOT NULL DEFAULT '', quantity TEXT NOT NULL DEFAULT '0', price TEXT NOT NULL DEFAULT '0', active INTEGER NOT NULL DEFAULT 1)")
         db.execSQL("CREATE INDEX items_name_idx ON items(name)")
@@ -20,24 +20,51 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
         db.execSQL("CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, date TEXT NOT NULL, account_id INTEGER, debit TEXT NOT NULL DEFAULT '0', credit TEXT NOT NULL DEFAULT '0', note TEXT NOT NULL DEFAULT '')")
     }
 
+    private fun createAccountsTable(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE accounts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, category_id INTEGER NOT NULL, phone TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1, FOREIGN KEY(category_id) REFERENCES account_categories(id))")
+    }
+
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Keep existing records; schema changes must use explicit migrations.
+        if (oldVersion < 2) {
+            db.execSQL("DROP INDEX IF EXISTS accounts_name_idx")
+            db.execSQL("ALTER TABLE accounts RENAME TO accounts_old")
+            createAccountsTable(db)
+            db.execSQL("INSERT OR IGNORE INTO account_categories(name) SELECT DISTINCT category FROM accounts_old WHERE TRIM(category) <> ''")
+            db.execSQL("INSERT INTO accounts(id,name,category_id,phone,active) SELECT a.id,a.name,c.id,a.phone,a.active FROM accounts_old a JOIN account_categories c ON c.name=a.category")
+            db.execSQL("DROP TABLE accounts_old")
+            db.execSQL("CREATE INDEX accounts_name_idx ON accounts(name)")
+        }
     }
 
     fun addAccount(name: String, category: String, phone: String = ""): Long {
-        require(name.isNotBlank()) { "اسم الحساب مطلوب" }
-        val values = ContentValues().apply {
-            put("name", name.trim())
-            put("category", category)
-            put("phone", phone.trim())
+        val cleanName = name.trim()
+        require(cleanName.isNotEmpty()) { "اسم الحساب مطلوب" }
+        require(category in ACCOUNT_CATEGORIES) { "تصنيف الحساب غير صالح" }
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            db.execSQL("INSERT OR IGNORE INTO account_categories(name) VALUES(?)", arrayOf(category))
+            val categoryId = db.rawQuery("SELECT id FROM account_categories WHERE name = ?", arrayOf(category)).use { cursor ->
+                check(cursor.moveToFirst()) { "تعذر تحديد تصنيف الحساب" }
+                cursor.getLong(0)
+            }
+            val values = ContentValues().apply {
+                put("name", cleanName)
+                put("category_id", categoryId)
+                put("phone", phone.trim())
+            }
+            val id = db.insertOrThrow("accounts", null, values)
+            db.setTransactionSuccessful()
+            return id
+        } finally {
+            db.endTransaction()
         }
-        return writableDatabase.insertOrThrow("accounts", null, values)
     }
 
     fun searchAccounts(prefix: String): List<AccountRecord> {
         val rows = mutableListOf<AccountRecord>()
         readableDatabase.rawQuery(
-            "SELECT id,name,category,phone FROM accounts WHERE active=1 AND name LIKE ? ORDER BY name LIMIT 30",
+            "SELECT a.id,a.name,c.name,a.phone FROM accounts a JOIN account_categories c ON c.id=a.category_id WHERE a.active=1 AND a.name LIKE ? ORDER BY a.name COLLATE NOCASE LIMIT 30",
             arrayOf(prefix.trim() + "%")
         ).use { cursor ->
             while (cursor.moveToNext()) rows += AccountRecord(cursor.getLong(0), cursor.getString(1), cursor.getString(2), cursor.getString(3))
@@ -50,8 +77,8 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
         val values = ContentValues().apply {
             put("name", name.trim())
             put("code", code.trim())
-            put("quantity", quantity)
-            put("price", price)
+            put("quantity", quantity.trim().ifEmpty { "0" })
+            put("price", price.trim().ifEmpty { "0" })
         }
         return writableDatabase.insertOrThrow("items", null, values)
     }
@@ -59,11 +86,15 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
     fun searchItems(prefix: String): List<ItemRecord> {
         val rows = mutableListOf<ItemRecord>()
         readableDatabase.rawQuery(
-            "SELECT id,name,code,quantity,price FROM items WHERE active=1 AND (name LIKE ? OR code LIKE ?) ORDER BY name LIMIT 30",
+            "SELECT id,name,code,quantity,price FROM items WHERE active=1 AND (name LIKE ? OR code LIKE ?) ORDER BY name COLLATE NOCASE LIMIT 30",
             arrayOf(prefix.trim() + "%", prefix.trim() + "%")
         ).use { cursor ->
             while (cursor.moveToNext()) rows += ItemRecord(cursor.getLong(0), cursor.getString(1), cursor.getString(2), cursor.getString(3), cursor.getString(4))
         }
         return rows
+    }
+
+    companion object {
+        val ACCOUNT_CATEGORIES = listOf("العملاء", "الموردون", "الأصول", "الصناديق", "البنوك", "المصروفات", "الإيرادات", "رأس المال", "أخرى")
     }
 }
