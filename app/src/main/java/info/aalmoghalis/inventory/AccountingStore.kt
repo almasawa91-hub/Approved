@@ -155,6 +155,16 @@ class AccountingStore(context: Context) : SQLiteOpenHelper(context, "muhasib_reb
         return rows
     }
 
+    fun deactivateAccount(id: Long): Int {
+        val values = ContentValues().apply { put("active", 0) }
+        return writableDatabase.update("accounts", values, "id = ?", arrayOf(id.toString()))
+    }
+
+    fun deactivateItem(id: Long): Int {
+        val values = ContentValues().apply { put("active", 0) }
+        return writableDatabase.update("items", values, "id = ?", arrayOf(id.toString()))
+    }
+
     fun getCounts(): LocalCounts {
         fun count(table: String, where: String = ""): Int {
             val sql = if (where.isBlank()) "SELECT COUNT(*) FROM $table" else "SELECT COUNT(*) FROM $table WHERE $where"
