@@ -42,12 +42,13 @@ fun AccountManagementScreen() {
     var showForm by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     var pendingDisable by remember { mutableStateOf<AccountRecord?>(null) }
+    var editingAccount by remember { mutableStateOf<AccountRecord?>(null) }
     val records = remember(query, refresh, categoryFilter) { store.searchAccounts(query, categoryFilter) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("دليل الحسابات", fontWeight = FontWeight.Bold)
-            Button(onClick = { name = ""; phone = ""; category = categoryFilter; showForm = true }) { Text("إضافة حساب") }
+            Button(onClick = { editingAccount = null; name = ""; phone = ""; category = categoryFilter; showForm = true }) { Text("إضافة حساب") }
         }
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("بحث باسم الحساب") }, singleLine = true)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -66,7 +67,10 @@ fun AccountManagementScreen() {
                         Text(account.name, fontWeight = FontWeight.Bold)
                         Text(account.category, color = Color(0xFFA67C00))
                         if (account.phone.isNotBlank()) Text(account.phone, color = Color(0xFF64748B))
-                        TextButton(onClick = { pendingDisable = account }) { Text("تعطيل الحساب") }
+                        Row {
+                            TextButton(onClick = { editingAccount = account; name = account.name; phone = account.phone; category = account.category; showForm = true }) { Text("تعديل") }
+                            TextButton(onClick = { pendingDisable = account }) { Text("تعطيل الحساب") }
+                        }
                     }
                 }
             }
@@ -76,7 +80,7 @@ fun AccountManagementScreen() {
     if (showForm) {
         AlertDialog(
             onDismissRequest = { showForm = false },
-            title = { Text("إضافة حساب جديد") },
+            title = { Text(if (editingAccount == null) "إضافة حساب جديد" else "تعديل الحساب") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(name, { name = it }, label = { Text("اسم الحساب") }, singleLine = true)
@@ -91,7 +95,9 @@ fun AccountManagementScreen() {
             confirmButton = {
                 Button(onClick = {
                     if (name.isNotBlank()) {
-                        store.addAccount(name, category, phone)
+                        val current = editingAccount
+                        if (current == null) store.addAccount(name, category, phone) else store.updateAccount(current.id, name, category, phone)
+                        editingAccount = null
                         query = ""
                         refresh++
                         showForm = false
@@ -133,12 +139,13 @@ fun ItemManagementScreen() {
     var showForm by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
     var pendingDisable by remember { mutableStateOf<ItemRecord?>(null) }
+    var editingItem by remember { mutableStateOf<ItemRecord?>(null) }
     val records = remember(query, refresh) { store.searchItems(query) }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("الأصناف والمخزون", fontWeight = FontWeight.Bold)
-            Button(onClick = { name = ""; code = ""; quantity = "0"; price = "0"; costPrice = "0"; itemCategory = ""; unit = ""; showForm = true }) { Text("إضافة صنف") }
+            Button(onClick = { editingItem = null; name = ""; code = ""; quantity = "0"; price = "0"; costPrice = "0"; itemCategory = ""; unit = ""; showForm = true }) { Text("إضافة صنف") }
         }
         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), label = { Text("بحث باسم الصنف أو رمزه") }, singleLine = true)
         if (records.isEmpty()) Text(if (query.isBlank()) "لا توجد أصناف محفوظة بعد." else "لا توجد نتائج تبدأ بهذه الأحرف.")
@@ -149,7 +156,10 @@ fun ItemManagementScreen() {
                         Text(item.name, fontWeight = FontWeight.Bold)
                         Text("التصنيف: ${item.category.ifBlank { "عام" }}   |   الوحدة: ${item.unit.ifBlank { "—" }}", color = Color(0xFF64748B))
                         Text("الرمز: ${item.code.ifBlank { "—" }}   |   الكمية: ${item.quantity}   |   البيع: ${item.price}   |   التكلفة: ${item.costPrice}", color = Color(0xFF64748B))
-                        TextButton(onClick = { pendingDisable = item }) { Text("تعطيل الصنف") }
+                        Row {
+                            TextButton(onClick = { editingItem = item; name = item.name; code = item.code; quantity = item.quantity; price = item.price; costPrice = item.costPrice; itemCategory = item.category; unit = item.unit; showForm = true }) { Text("تعديل") }
+                            TextButton(onClick = { pendingDisable = item }) { Text("تعطيل الصنف") }
+                        }
                     }
                 }
             }
@@ -159,7 +169,7 @@ fun ItemManagementScreen() {
     if (showForm) {
         AlertDialog(
             onDismissRequest = { showForm = false },
-            title = { Text("إضافة صنف جديد") },
+            title = { Text(if (editingItem == null) "إضافة صنف جديد" else "تعديل الصنف") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(name, { name = it }, label = { Text("اسم الصنف") }, singleLine = true)
@@ -174,7 +184,10 @@ fun ItemManagementScreen() {
             confirmButton = {
                 Button(onClick = {
                     if (name.isNotBlank()) {
-                        store.addItem(name, code, quantity, price, itemCategory, unit, costPrice)
+                        val current = editingItem
+                        if (current == null) store.addItem(name, code, quantity, price, itemCategory, unit, costPrice)
+                        else store.updateItem(current.id, name, code, quantity, price, itemCategory, unit, costPrice)
+                        editingItem = null
                         query = ""
                         refresh++
                         showForm = false
