@@ -98,7 +98,7 @@ fun DashboardScreen() {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Column {
-                        Text("المحاسب", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Navy)
+                        Text("محاسب سوفت", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Navy)
                         Text(if (selected == "الرئيسية") "نظام إدارة الحسابات والمخزون" else "قسم $selected", color = Color(0xFF64748B), style = MaterialTheme.typography.bodyMedium)
                     }
                     Surface(color = Gold.copy(alpha = 0.18f), shape = RoundedCornerShape(14.dp)) {
